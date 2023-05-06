@@ -178,6 +178,41 @@ def cat_neighbors_nodes(h_nodes, h_neighbors, E_idx):
     h_nn = torch.cat([h_neighbors, h_nodes], -1)
     return h_nn
 
+def get_dh_from_top_k_important_messages(h_message, importance_scores, k=10):
+    # Remove the redundant dimension from importance_scores
+    importance_scores = importance_scores.squeeze(-1)
+
+    # Get the top-k importance scores and their indices
+    k = min(k, importance_scores.size(-1))
+    _, top_k_indices = torch.topk(importance_scores, k, dim=-1)
+    
+    # Gather the top-k important messages
+    top_k_messages = gather_edges(h_message, top_k_indices)
+
+    # Calculate the sum of the top k important messages and divide by k
+    dh = torch.sum(top_k_messages, -2) / k
+
+    return dh
+
+# Example function to calculate importance scores
+def importance_function(h_message):
+    # Calculate the L2-norm of messages
+    importance_scores = torch.norm(h_message, dim=-1)
+    return importance_scores
+
+class AttentionImportanceFunction(torch.nn.Module):
+    def __init__(self, input_dim, hidden_dim, output_dim=1):
+        super(AttentionImportanceFunction, self).__init__()
+        self.linear1 = nn.Linear(input_dim, hidden_dim)
+        self.act = torch.nn.GELU()
+        self.linear2 = nn.Linear(hidden_dim, output_dim)
+
+    def forward(self, h_message):
+        x = self.linear1(h_message)
+        x = self.act(x)
+        importance_scores = self.linear2(x)
+        return importance_scores
+
 
 class EncLayer(nn.Module):
     def __init__(self, num_hidden, num_in, dropout=0.1, num_heads=None, scale=30):
@@ -200,30 +235,62 @@ class EncLayer(nn.Module):
         self.W13 = nn.Linear(num_hidden, num_hidden, bias=True)
         self.act = torch.nn.GELU()
         self.dense = PositionWiseFeedForward(num_hidden, num_hidden * 4)
+        self.importance_function = AttentionImportanceFunction(num_hidden, num_hidden, 1)
 
     def forward(self, h_V, h_E, E_idx, mask_V=None, mask_attend=None):
         """ Parallel computation of full transformer layer """
+        # print the shapes of all inputs
+        # print("h_V.shape", h_V.shape)
+        # print("h_E.shape", h_E.shape)
+        # print("E_idx.shape", E_idx.shape)
+        # print("mask_V.shape", mask_V.shape)
+        # print("mask_attend.shape", mask_attend.shape)
 
         h_EV = cat_neighbors_nodes(h_V, h_E, E_idx)
         h_V_expand = h_V.unsqueeze(-2).expand(-1,-1,h_EV.size(-2),-1)
+        # print shape
+        # print("h_EV.shape, h_V_expand.shape", h_EV.shape, h_V_expand.shape)
         h_EV = torch.cat([h_V_expand, h_EV], -1)
+        # print shape
+        # print("h_EV.shape", h_EV.shape)
         h_message = self.W3(self.act(self.W2(self.act(self.W1(h_EV)))))
+        # print shape
+        # print("h_message.shape", h_message.shape)
         if mask_attend is not None:
             h_message = mask_attend.unsqueeze(-1) * h_message
-        dh = torch.sum(h_message, -2) / self.scale
+        # dh = torch.sum(h_message, -2) / self.scale # todo: change back
+        # dh = get_dh_from_top_k_important_messages(h_message, importance_function(h_message), k=10)
+        importance_scores = self.importance_function(h_message)
+        dh = get_dh_from_top_k_important_messages(h_message, importance_scores, k=10)
+        # print shape
+        # print("dh.shape", dh.shape)
         h_V = self.norm1(h_V + self.dropout1(dh))
+        # print shape
+        # print("h_V.shape", h_V.shape)
 
         dh = self.dense(h_V)
+        # print shape
+        # print("dh.shape", dh.shape)
         h_V = self.norm2(h_V + self.dropout2(dh))
+        # print shape
+        # print("h_V.shape", h_V.shape)
         if mask_V is not None:
             mask_V = mask_V.unsqueeze(-1)
             h_V = mask_V * h_V
 
         h_EV = cat_neighbors_nodes(h_V, h_E, E_idx)
         h_V_expand = h_V.unsqueeze(-2).expand(-1,-1,h_EV.size(-2),-1)
+        # print shape
+        # print("h_EV.shape, h_V_expand.shape", h_EV.shape, h_V_expand.shape)
         h_EV = torch.cat([h_V_expand, h_EV], -1)
+        # print shape
+        # print("h_EV.shape", h_EV.shape)
         h_message = self.W13(self.act(self.W12(self.act(self.W11(h_EV)))))
+        # print shape
+        # print("h_message.shape", h_message.shape)
         h_E = self.norm3(h_E + self.dropout3(h_message))
+        # print shape
+        # print("h_E.shape", h_E.shape)
         return h_V, h_E
 
 
@@ -244,6 +311,7 @@ class DecLayer(nn.Module):
         self.W3 = nn.Linear(num_hidden, num_hidden, bias=True)
         self.act = torch.nn.GELU()
         self.dense = PositionWiseFeedForward(num_hidden, num_hidden * 4)
+        self.importance_function = AttentionImportanceFunction(num_hidden, num_hidden, 1)
 
     def forward(self, h_V, h_E, mask_V=None, mask_attend=None):
         """ Parallel computation of full transformer layer """
@@ -255,7 +323,10 @@ class DecLayer(nn.Module):
         h_message = self.W3(self.act(self.W2(self.act(self.W1(h_EV)))))
         if mask_attend is not None:
             h_message = mask_attend.unsqueeze(-1) * h_message
-        dh = torch.sum(h_message, -2) / self.scale
+        # dh = torch.sum(h_message, -2) / self.scale # todo: change back
+        # dh = get_dh_from_top_k_important_messages(h_message, importance_function(h_message), k=10)
+        importance_scores = self.importance_function(h_message)
+        dh = get_dh_from_top_k_important_messages(h_message, importance_scores, k=10)
 
         h_V = self.norm1(h_V + self.dropout1(dh))
 
