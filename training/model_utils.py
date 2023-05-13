@@ -307,7 +307,7 @@ class ProteinFeatures(nn.Module):
         self.num_positional_embeddings = num_positional_embeddings
 
         self.embeddings = PositionalEncodings(num_positional_embeddings)
-        node_in, edge_in = 6, num_positional_embeddings + num_rbf
+        node_in, edge_in = 6, num_positional_embeddings + num_rbf*25
         self.edge_embedding = nn.Linear(edge_in, edge_features, bias=False)
         self.norm_edges = nn.LayerNorm(edge_features)
 
@@ -361,30 +361,30 @@ class ProteinFeatures(nn.Module):
 
         RBF_all = []
         RBF_all.append(self._rbf(D_neighbors)) #Ca-Ca
-        # RBF_all.append(self._get_rbf(N, N, E_idx)) #N-N
-        # RBF_all.append(self._get_rbf(C, C, E_idx)) #C-C
-        # RBF_all.append(self._get_rbf(O, O, E_idx)) #O-O
-        # RBF_all.append(self._get_rbf(Cb, Cb, E_idx)) #Cb-Cb
-        # RBF_all.append(self._get_rbf(Ca, N, E_idx)) #Ca-N
-        # RBF_all.append(self._get_rbf(Ca, C, E_idx)) #Ca-C
-        # RBF_all.append(self._get_rbf(Ca, O, E_idx)) #Ca-O
-        # RBF_all.append(self._get_rbf(Ca, Cb, E_idx)) #Ca-Cb
-        # RBF_all.append(self._get_rbf(N, C, E_idx)) #N-C
-        # RBF_all.append(self._get_rbf(N, O, E_idx)) #N-O
-        # RBF_all.append(self._get_rbf(N, Cb, E_idx)) #N-Cb
-        # RBF_all.append(self._get_rbf(Cb, C, E_idx)) #Cb-C
-        # RBF_all.append(self._get_rbf(Cb, O, E_idx)) #Cb-O
-        # RBF_all.append(self._get_rbf(O, C, E_idx)) #O-C
-        # RBF_all.append(self._get_rbf(N, Ca, E_idx)) #N-Ca
-        # RBF_all.append(self._get_rbf(C, Ca, E_idx)) #C-Ca
-        # RBF_all.append(self._get_rbf(O, Ca, E_idx)) #O-Ca
-        # RBF_all.append(self._get_rbf(Cb, Ca, E_idx)) #Cb-Ca
-        # RBF_all.append(self._get_rbf(C, N, E_idx)) #C-N
-        # RBF_all.append(self._get_rbf(O, N, E_idx)) #O-N
-        # RBF_all.append(self._get_rbf(Cb, N, E_idx)) #Cb-N
-        # RBF_all.append(self._get_rbf(C, Cb, E_idx)) #C-Cb
-        # RBF_all.append(self._get_rbf(O, Cb, E_idx)) #O-Cb
-        # RBF_all.append(self._get_rbf(C, O, E_idx)) #C-O
+        RBF_all.append(self._get_rbf(N, N, E_idx)) #N-N
+        RBF_all.append(self._get_rbf(C, C, E_idx)) #C-C
+        RBF_all.append(self._get_rbf(O, O, E_idx)) #O-O
+        RBF_all.append(self._get_rbf(Cb, Cb, E_idx)) #Cb-Cb
+        RBF_all.append(self._get_rbf(Ca, N, E_idx)) #Ca-N
+        RBF_all.append(self._get_rbf(Ca, C, E_idx)) #Ca-C
+        RBF_all.append(self._get_rbf(Ca, O, E_idx)) #Ca-O
+        RBF_all.append(self._get_rbf(Ca, Cb, E_idx)) #Ca-Cb
+        RBF_all.append(self._get_rbf(N, C, E_idx)) #N-C
+        RBF_all.append(self._get_rbf(N, O, E_idx)) #N-O
+        RBF_all.append(self._get_rbf(N, Cb, E_idx)) #N-Cb
+        RBF_all.append(self._get_rbf(Cb, C, E_idx)) #Cb-C
+        RBF_all.append(self._get_rbf(Cb, O, E_idx)) #Cb-O
+        RBF_all.append(self._get_rbf(O, C, E_idx)) #O-C
+        RBF_all.append(self._get_rbf(N, Ca, E_idx)) #N-Ca
+        RBF_all.append(self._get_rbf(C, Ca, E_idx)) #C-Ca
+        RBF_all.append(self._get_rbf(O, Ca, E_idx)) #O-Ca
+        RBF_all.append(self._get_rbf(Cb, Ca, E_idx)) #Cb-Ca
+        RBF_all.append(self._get_rbf(C, N, E_idx)) #C-N
+        RBF_all.append(self._get_rbf(O, N, E_idx)) #O-N
+        RBF_all.append(self._get_rbf(Cb, N, E_idx)) #Cb-N
+        RBF_all.append(self._get_rbf(C, Cb, E_idx)) #C-Cb
+        RBF_all.append(self._get_rbf(O, Cb, E_idx)) #O-Cb
+        RBF_all.append(self._get_rbf(C, O, E_idx)) #C-O
         RBF_all = torch.cat(tuple(RBF_all), dim=-1)
 
         # offset is the distance, in residues, between each residue and its closest distance neighbors
