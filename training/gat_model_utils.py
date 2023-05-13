@@ -5,6 +5,7 @@ from torch_geometric.nn import GATv2
 from model_utils import ProteinFeatures
 
 class ProtienGAT(nn.Module):
+
     def __init__(self, num_letters=21, node_features=128, edge_features=128,
         hidden_dim=128, num_encoder_layers=3, num_decoder_layers=3,
         vocab=21, k_neighbors=32, augment_eps=0.1, dropout=0.1):
@@ -36,7 +37,7 @@ class ProtienGAT(nn.Module):
         # Create first GATv2
         encodingGAT = GATv2(self.node_features, self.node_features, dropout=0.1, edge_dim=self.edge_features)
         # Run h_V and h_E through the GATv2
-        h_V = encodingGAT(h_V, 
+        # h_V = encodingGAT(h_V, 
         # Add sequnce embeddings to h_E to get h_ES
         # Add 0ed out sequence embeddings to h_E to get masked sequence and edge embeddings
         # Concatenate sequence and edge embeddings to vertices to get new edge edges features
