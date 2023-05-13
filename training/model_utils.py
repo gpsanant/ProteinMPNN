@@ -341,6 +341,8 @@ class ProteinFeatures(nn.Module):
         if self.training and self.augment_eps > 0:
             X = X + self.augment_eps * torch.randn_like(X)
         
+        # print("X.shape", X.shape, "mask.shape", mask.shape, "residue_idx.shape", residue_idx.shape, "chain_labels.shape", chain_labels.shape)
+
         b = X[:,:,1,:] - X[:,:,0,:]
         c = X[:,:,2,:] - X[:,:,1,:]
         a = torch.cross(b, c, dim=-1)
@@ -349,8 +351,13 @@ class ProteinFeatures(nn.Module):
         N = X[:,:,0,:]
         C = X[:,:,2,:]
         O = X[:,:,3,:]
- 
+
+        # find the minimum top_k distances between each Ca
+        # D_neighbors is [B, N, K] for each batch, for each node, its closest k distances
+        # E_idx is [B, N, K] for each batch, for each node, its closest k indexes
         D_neighbors, E_idx = self._dist(Ca, mask)
+
+        # print("D_neighbors.shape", D_neighbors.shape, "E_idx.shape", E_idx.shape)
 
         RBF_all = []
         RBF_all.append(self._rbf(D_neighbors)) #Ca-Ca
@@ -380,15 +387,21 @@ class ProteinFeatures(nn.Module):
         RBF_all.append(self._get_rbf(C, O, E_idx)) #C-O
         RBF_all = torch.cat(tuple(RBF_all), dim=-1)
 
+        # offset is the distance, in residues, between each residue and its closest distance neighbors
         offset = residue_idx[:,:,None]-residue_idx[:,None,:]
         offset = gather_edges(offset[:,:,:,None], E_idx)[:,:,:,0] #[B, L, K]
 
+        # print("offset", offset.shape, RBF_all.shape)
+
+        # E_chains is 1 if residue i and j are in the same chain, 0 otherwise
         d_chains = ((chain_labels[:, :, None] - chain_labels[:,None,:])==0).long() #find self vs non-self interaction
         E_chains = gather_edges(d_chains[:,:,:,None], E_idx)[:,:,:,0]
+        # E_positional is an embedding of the offset distance between each residue and its closest distance neighbors, where if the residues are in different chains, the embedding is the same for all distances
         E_positional = self.embeddings(offset.long(), E_chains)
         E = torch.cat((E_positional, RBF_all), -1)
         E = self.edge_embedding(E)
         E = self.norm_edges(E)
+        # print("E", E.shape, E_positional.shape, E_chains.shape, d_chains.shape)
         return E, E_idx
 
 
@@ -442,7 +455,12 @@ class ProteinMPNN(nn.Module):
 
         # Concatenate sequence embeddings for autoregressive decoder
         h_S = self.W_s(S)
+        # print(S.shape, h_S.shape, h_V.shape, h_E.shape)
         h_ES = cat_neighbors_nodes(h_S, h_E, E_idx)
+        # print(h_ES.shape)
+
+        # h_ES is the concatenation of the sequence embedding for neighbor and the edge embedding
+        # [B, N, K, 2*hidden_dim]
 
         # Build encoder embeddings
         h_EX_encoder = cat_neighbors_nodes(torch.zeros_like(h_S), h_E, E_idx)
@@ -450,7 +468,9 @@ class ProteinMPNN(nn.Module):
 
 
         chain_M = chain_M*mask #update chain_M to include missing regions
+        # print("chain_M", chain_M.shape, "mask", mask.shape)
         decoding_order = torch.argsort((chain_M+0.0001)*(torch.abs(torch.randn(chain_M.shape, device=device)))) #[numbers will be smaller for places where chain_M = 0.0 and higher for places where chain_M = 1.0]
+        # print("decoding_order", decoding_order.shape)
         mask_size = E_idx.shape[1]
         permutation_matrix_reverse = torch.nn.functional.one_hot(decoding_order, num_classes=mask_size).float()
         order_mask_backward = torch.einsum('ij, biq, bjp->bqp',(1-torch.triu(torch.ones(mask_size,mask_size, device=device))), permutation_matrix_reverse, permutation_matrix_reverse)
@@ -458,7 +478,13 @@ class ProteinMPNN(nn.Module):
         mask_1D = mask.view([mask.size(0), mask.size(1), 1, 1])
         mask_bw = mask_1D * mask_attend
         mask_fw = mask_1D * (1. - mask_attend)
+        # print("mask_attend", mask_attend.shape, "permutation_matrix_reverse", permutation_matrix_reverse.shape, "order_mask_backward", order_mask_backward.shape)
+        # print("mask_1D", mask_1D.shape, "mask_bw", mask_bw.shape, "mask_fw", mask_fw.shape)
 
+        # h_ESV is the edge, sequence, and node embedding for each neighbor,
+        # mask_bw makes it so that only the sequences of the previous predicted residues are used
+        # h_EXV_encoder_fw is the edge and node embedding for each neighbor, with the sequence
+        # embedding 0ed out, and that is known for residues that are yet to be predicted
         h_EXV_encoder_fw = mask_fw * h_EXV_encoder
         for layer in self.decoder_layers:
             h_ESV = cat_neighbors_nodes(h_V, h_ES, E_idx)
