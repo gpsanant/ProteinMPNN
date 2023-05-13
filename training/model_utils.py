@@ -219,11 +219,11 @@ class EncLayer(nn.Module):
             mask_V = mask_V.unsqueeze(-1)
             h_V = mask_V * h_V
 
-        # h_EV = cat_neighbors_nodes(h_V, h_E, E_idx)
-        # h_V_expand = h_V.unsqueeze(-2).expand(-1,-1,h_EV.size(-2),-1)
-        # h_EV = torch.cat([h_V_expand, h_EV], -1)
-        # h_message = self.W13(self.act(self.W12(self.act(self.W11(h_EV)))))
-        # h_E = self.norm3(h_E + self.dropout3(h_message))
+        h_EV = cat_neighbors_nodes(h_V, h_E, E_idx)
+        h_V_expand = h_V.unsqueeze(-2).expand(-1,-1,h_EV.size(-2),-1)
+        h_EV = torch.cat([h_V_expand, h_EV], -1)
+        h_message = self.W13(self.act(self.W12(self.act(self.W11(h_EV)))))
+        h_E = self.norm3(h_E + self.dropout3(h_message))
         return h_V, h_E
 
 
