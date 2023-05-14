@@ -468,9 +468,9 @@ class ProteinMPNN(nn.Module):
 
 
         chain_M = chain_M*mask #update chain_M to include missing regions
-        # print("chain_M", chain_M.shape, "mask", mask.shape)
+        print("chain_M", chain_M.shape, "mask", mask.shape)
         decoding_order = torch.argsort((chain_M+0.0001)*(torch.abs(torch.randn(chain_M.shape, device=device)))) #[numbers will be smaller for places where chain_M = 0.0 and higher for places where chain_M = 1.0]
-        # print("decoding_order", decoding_order.shape)
+        print("decoding_order", decoding_order.shape)
         mask_size = E_idx.shape[1]
         permutation_matrix_reverse = torch.nn.functional.one_hot(decoding_order, num_classes=mask_size).float()
         order_mask_backward = torch.einsum('ij, biq, bjp->bqp',(1-torch.triu(torch.ones(mask_size,mask_size, device=device))), permutation_matrix_reverse, permutation_matrix_reverse)
@@ -478,9 +478,9 @@ class ProteinMPNN(nn.Module):
         mask_1D = mask.view([mask.size(0), mask.size(1), 1, 1])
         mask_bw = mask_1D * mask_attend
         mask_fw = mask_1D * (1. - mask_attend)
-        # print("mask_attend", mask_attend.shape, "permutation_matrix_reverse", permutation_matrix_reverse.shape, "order_mask_backward", order_mask_backward.shape)
-        # print("mask_1D", mask_1D.shape, "mask_bw", mask_bw.shape, "mask_fw", mask_fw.shape)
-
+        print("mask_attend", mask_attend.shape, "permutation_matrix_reverse", permutation_matrix_reverse.shape, "order_mask_backward", order_mask_backward.shape)
+        print("mask_1D", mask_1D.shape, "mask_bw", mask_bw.shape, "mask_fw", mask_fw.shape)
+    
         # h_ESV is the edge, sequence, and node embedding for each neighbor,
         # mask_bw makes it so that only the sequences of the previous predicted residues are used
         # h_EXV_encoder_fw is the edge and node embedding for each neighbor, with the sequence
