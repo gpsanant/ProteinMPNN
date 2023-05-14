@@ -480,7 +480,7 @@ class ProteinMPNN(nn.Module):
         mask_fw = mask_1D * (1. - mask_attend)
         print("mask_attend", mask_attend.shape, "permutation_matrix_reverse", permutation_matrix_reverse.shape, "order_mask_backward", order_mask_backward.shape)
         print("mask_1D", mask_1D.shape, "mask_bw", mask_bw.shape, "mask_fw", mask_fw.shape)
-    
+
         # h_ESV is the edge, sequence, and node embedding for each neighbor,
         # mask_bw makes it so that only the sequences of the previous predicted residues are used
         # h_EXV_encoder_fw is the edge and node embedding for each neighbor, with the sequence

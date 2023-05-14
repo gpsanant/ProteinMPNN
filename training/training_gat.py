@@ -18,7 +18,8 @@ def main(args):
     import subprocess
     from concurrent.futures import ProcessPoolExecutor    
     from utils import worker_init_fn, get_pdbs, loader_pdb, build_training_clusters, PDB_dataset, StructureDataset, StructureLoader
-    from model_utils import featurize, loss_smoothed, loss_nll, get_std_opt, ProteinMPNN
+    from model_utils import featurize, loss_smoothed, loss_nll, get_std_opt
+    from gat_model_utils import ProtienGAT
 
     scaler = torch.cuda.amp.GradScaler()
      
@@ -73,8 +74,8 @@ def main(args):
     valid_loader = torch.utils.data.DataLoader(valid_set, worker_init_fn=worker_init_fn, **LOAD_PARAM)
 
 
-    model = ProteinMPNN(node_features=args.hidden_dim, 
-                        edge_features=args.hidden_dim, 
+    model = ProtienGAT(num_node_features=args.hidden_dim, 
+                        num_edge_features=args.hidden_dim, 
                         hidden_dim=args.hidden_dim, 
                         num_encoder_layers=args.num_encoder_layers, 
                         num_decoder_layers=args.num_encoder_layers, 
@@ -142,7 +143,9 @@ def main(args):
                 
                 if args.mixed_precision:
                     with torch.cuda.amp.autocast():
-                        log_probs = model(X, S, mask, chain_M, residue_idx, chain_encoding_all)
+                        log_probs = torch.zeros((X.shape[0], X.shape[1], 21), device=device)
+                        for i in range(X.shape[1]):
+                            log_probs[i] = model(X, S, mask, chain_M, residue_idx, chain_encoding_all, i)
                         _, loss_av_smoothed = loss_smoothed(S, log_probs, mask_for_loss)
            
                     scaler.scale(loss_av_smoothed).backward()
@@ -153,7 +156,9 @@ def main(args):
                     scaler.step(optimizer)
                     scaler.update()
                 else:
-                    log_probs = model(X, S, mask, chain_M, residue_idx, chain_encoding_all)
+                    log_probs = torch.zeros((X.shape[0], X.shape[1], 21), device=device)
+                    for i in range(X.shape[1]):
+                        log_probs[i] = model(X, S, mask, chain_M, residue_idx, chain_encoding_all, i)
                     _, loss_av_smoothed = loss_smoothed(S, log_probs, mask_for_loss)
                     loss_av_smoothed.backward()
 
@@ -176,7 +181,9 @@ def main(args):
                 validation_acc = 0.
                 for _, batch in enumerate(loader_valid):
                     X, S, mask, lengths, chain_M, residue_idx, mask_self, chain_encoding_all = featurize(batch, device)
-                    log_probs = model(X, S, mask, chain_M, residue_idx, chain_encoding_all)
+                    log_probs = torch.zeros((X.shape[0], X.shape[1], 21), device=device)
+                    for i in range(X.shape[1]):
+                        log_probs[i] = model(X, S, mask, chain_M, residue_idx, chain_encoding_all, i)
                     mask_for_loss = mask*chain_M
                     loss, loss_av, true_false = loss_nll(S, log_probs, mask_for_loss)
                     
