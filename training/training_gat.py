@@ -132,7 +132,8 @@ def main(args):
                     q.put_nowait(executor.submit(get_pdbs, train_loader, 1, args.max_protein_length, args.num_examples_per_epoch))
                     p.put_nowait(executor.submit(get_pdbs, valid_loader, 1, args.max_protein_length, args.num_examples_per_epoch))
                 reload_c += 1
-            for _, batch in enumerate(loader_train):
+            for idx, batch in enumerate(loader_train):
+                print("batch", idx, "time", time.time() - t0)
                 start_batch = time.time()
                 X, S, mask, lengths, chain_M, residue_idx, mask_self, chain_encoding_all = featurize(batch, device)
                 elapsed_featurize = time.time() - start_batch
@@ -143,6 +144,7 @@ def main(args):
                     with torch.cuda.amp.autocast():
                         log_probs = torch.zeros((X.shape[0], X.shape[1], 21), device=device)
                         for i in range(X.shape[1]):
+                            print("model", i, "time", time.time() - t0)
                             log_probs[i] = model(X, S, mask, chain_M, residue_idx, chain_encoding_all, i)
                         _, loss_av_smoothed = loss_smoothed(S, log_probs, mask_for_loss)
            
