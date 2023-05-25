@@ -178,7 +178,7 @@ def cat_neighbors_nodes(h_nodes, h_neighbors, E_idx):
     h_nn = torch.cat([h_neighbors, h_nodes], -1)
     return h_nn
 
-def get_dh_from_top_k_important_messages(h_message, importance_scores, k=10):
+def get_dh_from_top_k_important_messages(h_message, importance_scores, k=10, scale=30):
     # Remove the redundant dimension from importance_scores
     importance_scores = importance_scores.squeeze(-1)
 
@@ -189,8 +189,8 @@ def get_dh_from_top_k_important_messages(h_message, importance_scores, k=10):
     # Gather the top-k important messages
     top_k_messages = gather_edges(h_message, top_k_indices)
 
-    # Calculate the sum of the top k important messages and divide by k
-    dh = torch.sum(top_k_messages, -2) / k
+    # Calculate the sum of the top k important messages and divide by scale
+    dh = torch.sum(top_k_messages, -2) / scale
 
     return dh
 
@@ -261,7 +261,7 @@ class EncLayer(nn.Module):
         # dh = torch.sum(h_message, -2) / self.scale # todo: change back
         # dh = get_dh_from_top_k_important_messages(h_message, importance_function(h_message), k=10)
         importance_scores = self.importance_function(h_message)
-        dh = get_dh_from_top_k_important_messages(h_message, importance_scores, k=10)
+        dh = get_dh_from_top_k_important_messages(h_message, importance_scores, k=10, scale=self.scale)
         # print shape
         # print("dh.shape", dh.shape)
         h_V = self.norm1(h_V + self.dropout1(dh))
@@ -326,7 +326,7 @@ class DecLayer(nn.Module):
         # dh = torch.sum(h_message, -2) / self.scale # todo: change back
         # dh = get_dh_from_top_k_important_messages(h_message, importance_function(h_message), k=10)
         importance_scores = self.importance_function(h_message)
-        dh = get_dh_from_top_k_important_messages(h_message, importance_scores, k=10)
+        dh = get_dh_from_top_k_important_messages(h_message, importance_scores, k=10, scale=self.scale)
 
         h_V = self.norm1(h_V + self.dropout1(dh))
 
